@@ -1,0 +1,26 @@
+// Hämta alla rader i tabellen från <tbody> med klassen "p-element p-datatable-tbody"
+let rows = document.querySelectorAll('.p-element.p-datatable-tbody .ng-star-inserted'); // Alla <tr>-rader i tabellen
+let data = [];
+
+// Iterera genom varje rad och extrahera "route" och "tasks"
+rows.forEach(row => {
+    let columns = row.querySelectorAll('td'); // Hämta alla <td>-element i raden
+    if (columns.length > 3) { // Kontrollera att det finns minst fyra kolumner
+        let route = columns[0]?.innerText.trim(); // Hämta text från första <td> (route)
+        let tasksText = columns[3]?.innerText.trim(); // Hämta text från fjärde <td> (tasks)
+        
+        // Dela upp tasksText (t.ex. "0 / 62")
+        let [tasksDone, tasksTotal] = tasksText.split('/').map(val => parseInt(val.trim()));
+        
+        // Räkna ut skillnaden
+        let tasksLeft = tasksTotal - tasksDone;
+
+        if (route && !isNaN(tasksLeft)) { // Kontrollera att både route och tasksLeft finns
+            data.push(`Route: ${route}, Tasks Left: ${tasksLeft}`); // Lägg till i datan i önskat format
+        }
+    }
+});
+
+// Kopiera datan till klippbordet
+console.log(data.join('\n')); // Visa datan i konsolen, en rad per entry
+copy(data.join('\n')); // Kopiera datan som text till klippbordet

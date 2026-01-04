@@ -1,0 +1,19 @@
+Sub SkrivUtSexSidorAktiv()
+    Dim ws As Worksheet
+    Dim områden As Variant
+    Dim adr As Variant
+
+    ' Använd det blad som är aktivt när makrot körs
+    Set ws = ActiveSheet
+
+    ' Uppdaterade utskriftsområden (V -> J, S -> G)
+    områden = Array("A2:J20", "A2:G20", "A25:J49", "A25:G49", "A51:J73", "A51:G73")
+
+    For Each adr In områden
+        ws.PageSetup.PrintArea = adr
+        ws.Range(adr).Select
+        ws.PrintOut
+    Next adr
+
+    ws.PageSetup.PrintArea = ""
+End Sub

@@ -1,0 +1,81 @@
+' --------- VARDAG ---------
+Sub UpdateTasksTotal_VardagV2()
+    Call UpdateTasksTotal_New("J1", 10, "AD") ' Kolumn J
+End Sub
+
+' --------- LÖRDAG ---------
+Sub UpdateTasksTotal_LördagV2()
+    Call UpdateTasksTotal_New("J1", 11, "AE") ' Kolumn K
+End Sub
+
+' --------- GEMENSAM FUNKTION ---------
+Sub UpdateTasksTotal_New(inputCell As String, tasksTotalCol As Integer, searchCol As String)
+    Dim ws As Worksheet
+    Dim routeTasks As Object
+    Dim dataRows As Variant
+    Dim lastRow As Long
+    Dim i As Long
+    Dim routeValue As String, tasksValue As String
+    Dim vakt As String, vaktAlt As String
+    Dim notFoundList As String
+    Dim matchedCount As Long
+    Dim searchColIndex As Integer
+
+    Set ws = ActiveSheet
+    Set routeTasks = CreateObject("Scripting.Dictionary")
+    matchedCount = 0
+
+    searchColIndex = ws.Range(searchCol & "1").Column
+    Dim rawData As String
+    rawData = ws.Range(inputCell).Value
+
+    If Trim(rawData) = "" Then
+        MsgBox "Ingen data funnen i cell " & inputCell & "!", vbExclamation
+        Exit Sub
+    End If
+
+    dataRows = Split(rawData, vbLf)
+
+    ' Läs varje rad typ: "Route: 116201, Tasks Total: 45"
+    For i = LBound(dataRows) To UBound(dataRows)
+        Dim line As String
+        line = Trim(dataRows(i))
+
+        If InStr(line, "Route:") > 0 And InStr(line, "Tasks Total:") > 0 Then
+            routeValue = Trim(Mid(line, InStr(line, "Route:") + 7, InStr(line, ", Tasks Total:") - InStr(line, "Route:") - 7))
+            tasksValue = Trim(Mid(line, InStr(line, "Tasks Total:") + 13))
+
+            If tasksValue <> "" Then
+                routeTasks(CStr(routeValue)) = tasksValue
+            End If
+        End If
+    Next i
+
+    lastRow = ws.Cells(ws.Rows.Count, 1).End(xlUp).Row
+    notFoundList = ""
+
+    For i = 2 To lastRow
+        vakt = Trim(CStr(ws.Cells(i, 1).Value))
+        vaktAlt = Trim(CStr(ws.Cells(i, searchColIndex).Value))
+
+        If routeTasks.exists(vakt) Then
+            ws.Cells(i, tasksTotalCol).Value = routeTasks(vakt)
+            matchedCount = matchedCount + 1
+        ElseIf routeTasks.exists(vaktAlt) Then
+            ws.Cells(i, tasksTotalCol).Value = routeTasks(vaktAlt)
+            matchedCount = matchedCount + 1
+        Else
+            notFoundList = notFoundList & "Rad " & i & ": " & vakt & "/" & vaktAlt & vbNewLine
+        End If
+    Next i
+
+    If matchedCount > 0 Then
+        MsgBox "Tasks Total har uppdaterats i kolumn " & Chr(64 + tasksTotalCol) & " för " & matchedCount & " vakter!", vbInformation
+    Else
+        MsgBox "Inga vakter kunde matchas.", vbExclamation
+    End If
+
+    If notFoundList <> "" Then
+        Debug.Print "Följande vakter kunde inte matchas:" & vbNewLine & notFoundList
+    End If
+End Sub

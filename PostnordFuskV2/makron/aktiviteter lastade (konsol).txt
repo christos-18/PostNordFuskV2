@@ -1,0 +1,32 @@
+let rows = document.querySelectorAll('.p-element.p-datatable-tbody .ng-star-inserted');
+let data = [];
+
+rows.forEach(row => {
+    let columns = row.querySelectorAll('td');
+
+    if (columns.length >= 4) {
+        let route = columns[0]?.innerText.trim();
+        let status = columns[1]?.innerText.trim();
+        let tasksText = columns[3]?.innerText.trim();
+
+        if (route && tasksText.includes('/')) {
+            let parts = tasksText.split('/');
+            let leftVal = parseInt(parts[0]?.trim());
+            let rightVal = parseInt(parts[1]?.trim());
+            let valueToSave = null;
+
+            if ((status === "Loading" || status === "FinishLoading") && !isNaN(leftVal)) {
+                valueToSave = leftVal;
+            } else if (status === "OnRoute" && !isNaN(rightVal)) {
+                valueToSave = rightVal;
+            }
+
+            if (valueToSave !== null) {
+                data.push(`Route: ${route}, Tasks Total: ${valueToSave}`);
+            }
+        }
+    }
+});
+
+console.log(data.join('\n'));
+copy(data.join('\n'));

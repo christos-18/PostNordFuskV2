@@ -1,0 +1,79 @@
+(function () {
+  const felkoderAttHoppaÖver = ["820", "801", "830", "802", "803", "805"];
+  const ogiltigaStatusar = ["Lastad", "Avgått", "Utlämnad", "Utplockad"];
+
+  const rader = document.querySelectorAll("table tr");
+  let försenade = 0, hoppadeFelkod = 0, hoppadeStatus = 0;
+
+  function delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  function hittaFörbjudenFelkod(felkodStr) {
+    const kodLista = felkodStr
+      .split(",")
+      .map(kod => kod.trim())
+      .filter(kod => kod !== "");
+    return kodLista.find(kod => felkoderAttHoppaÖver.includes(kod)) || null;
+  }
+
+  async function behandlaRader() {
+    for (let i = 1; i < rader.length; i++) {
+      if (window.stoppaFörseningsslinga) {
+        console.warn("⛔ Förseningsscript stoppat av användaren.");
+        break;
+      }
+
+      const rad = rader[i];
+      const celler = rad.querySelectorAll("td");
+      if (celler.length < 15) continue;
+
+      const radnummer = celler[0]?.innerText.trim() || `rad ${i + 1}`;
+      const försenaKnapp = celler[14].querySelector("button");
+      if (!försenaKnapp) continue;
+
+      const felkoder = celler[12].innerText.trim();
+      const status = celler[10].innerText.trim();
+
+      const förbjudenFelkod = hittaFörbjudenFelkod(felkoder);
+      if (förbjudenFelkod) {
+        console.log(`⏩ Skipping ${radnummer}, felkod: ${förbjudenFelkod}`);
+        hoppadeFelkod++;
+        continue;
+      }
+
+      if (status !== "") {
+        console.log(`⏩ Skipping ${radnummer}, status: "${status}"`);
+        hoppadeStatus++;
+        continue;
+      }
+
+      // Klicka på försena
+      försenaKnapp.click();
+
+      await delay(500);
+
+      const sparaKnapp = [...document.querySelectorAll("button")].find(btn =>
+        btn.innerText.trim().toLowerCase() === "spara"
+      );
+      if (sparaKnapp) {
+        sparaKnapp.click();
+        försenade++;
+        console.log(`✅ ${radnummer} försenad.`);
+      } else {
+        console.warn(`❌ Kunde inte hitta "Spara"-knappen för ${radnummer}.`);
+      }
+
+      await delay(500);
+    }
+
+    // Slutrapport
+    console.log("📦 Klart!");
+    console.log(`✅ Försenade: ${försenade}`);
+    console.log(`⏩ Hoppade pga felkod: ${hoppadeFelkod}`);
+    console.log(`⏩ Hoppade pga status: ${hoppadeStatus}`);
+  }
+
+  window.stoppaFörseningsslinga = false;
+  behandlaRader();
+})();

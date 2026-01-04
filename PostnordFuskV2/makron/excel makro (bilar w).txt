@@ -1,0 +1,84 @@
+Sub UpdateBatteryAndFuelLevels()
+    Dim ws As Worksheet
+    Dim dataRows As Variant
+    Dim inputData As String
+    Dim lastRow As Long
+    Dim carData As Object
+    Dim i As Long
+    Dim carReg As String, carLevel As String
+    Dim notFoundList As String
+    Dim matchedCount As Long
+
+    ' Initiera worksheet och dictionary
+    Set ws = ActiveSheet
+    Set carData = CreateObject("Scripting.Dictionary")
+
+    ' Hämta inputdata från cell W1
+    inputData = ws.Range("W1").Value
+
+    ' Kontrollera om inputdata finns
+    If Trim(inputData) = "" Then
+        MsgBox "Ingen data funnen i cell W1!", vbExclamation
+        Exit Sub
+    End If
+
+    ' Dela upp data baserat på radbrytningar
+    dataRows = Split(inputData, vbLf)
+
+    ' Bearbeta varje rad i inputdata
+    For i = LBound(dataRows) To UBound(dataRows)
+        Dim line As String, carRegNum As String, level As String
+        line = Trim(dataRows(i))
+
+        If InStr(line, "Car:") > 0 And (InStr(line, "Battery:") > 0 Or InStr(line, "Fuel:") > 0) Then
+            carRegNum = Trim(Mid(line, InStr(line, "Car:") + 5, InStr(line, ",") - InStr(line, "Car:") - 5))
+
+            If InStr(line, "Battery:") > 0 Then
+                level = Trim(Mid(line, InStr(line, "Battery:") + 8)) & "%"
+            ElseIf InStr(line, "Fuel:") > 0 Then
+                level = Trim(Mid(line, InStr(line, "Fuel:") + 6)) & "L"
+            End If
+
+            carData(carRegNum) = level
+        End If
+    Next i
+
+    ' Hitta sista raden i kolumn D (bilreg.nr)
+    lastRow = ws.Cells(ws.Rows.Count, "D").End(xlUp).Row
+
+    ' Initiera räknare
+    notFoundList = ""
+    matchedCount = 0
+
+    ' Uppdatera batteri/bränsle i kolumn W
+    For i = 2 To lastRow
+        carReg = Trim(ws.Cells(i, "D").Value)
+
+        If carData.exists(carReg) Then
+            ws.Cells(i, "W").Value = carData(carReg)
+
+            ' Färgmarkera bränslebilar (L = liter)
+            If Right(carData(carReg), 1) = "L" Then
+                ws.Cells(i, "W").Interior.Color = RGB(0, 112, 192)
+            Else
+                ws.Cells(i, "W").Interior.ColorIndex = xlColorIndexNone
+            End If
+
+            matchedCount = matchedCount + 1
+        Else
+            notFoundList = notFoundList & "Rad " & i & ": " & carReg & vbNewLine
+        End If
+    Next i
+
+    ' Visa resultat
+    If matchedCount > 0 Then
+        MsgBox matchedCount & " bilar uppdaterades i kolumn W!", vbInformation
+    Else
+        MsgBox "Inga bilar kunde matchas. Kontrollera data i kolumn D och W1.", vbExclamation
+    End If
+
+    ' Visa saknade bilar i direktfönstret (Ctrl+G)
+    If notFoundList <> "" Then
+        Debug.Print "Följande bilar kunde inte matchas:" & vbNewLine & notFoundList
+    End If
+End Sub

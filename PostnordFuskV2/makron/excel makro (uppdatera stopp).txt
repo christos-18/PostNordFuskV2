@@ -1,0 +1,136 @@
+' ===== Hjälpfunktion: kolumnnummer -> bokstav (hanterar > Z) =====
+Private Function ColLetter(ByVal colNum As Long) As String
+    Do
+        colNum = colNum - 1
+        ColLetter = Chr(65 + (colNum Mod 26)) & ColLetter
+        colNum = colNum \ 26
+    Loop While colNum > 0
+End Function
+
+' ===== Kärnfunktion (oförändrad logik, nya parametrar används i anropen) =====
+Sub UpdateTasksLeft(inputCell As String, tasksCol As Integer, searchCol As String)
+    Dim ws As Worksheet
+    Dim routeTasks As Object
+    Dim dataRows As Variant
+    Dim lastRow As Long
+    Dim i As Long
+    Dim vakt As String, vaktAlt As String, tasksLeft As String
+    Dim notFoundList As String
+    Dim matchedCount As Long
+    Dim searchColIndex As Integer
+
+    Set ws = ActiveSheet
+    Set routeTasks = CreateObject("Scripting.Dictionary")
+    matchedCount = 0
+
+    ' Omvandla kolumnbokstav till index (A = 1, B = 2, ...)
+    searchColIndex = ws.Range(searchCol & "1").Column
+
+    ' Läs in data från inputCell (nu J1)
+    Dim rawData As String
+    rawData = ws.Range(inputCell).Value
+
+    If Trim(rawData) = "" Then
+        MsgBox "Ingen data funnen i cell " & inputCell & "!", vbExclamation
+        Exit Sub
+    End If
+
+    ' Dela upp data på rader
+    dataRows = Split(rawData, vbLf)
+
+    ' Bygg dictionary: Route -> Tasks Left (hoppa över 0)
+    For i = LBound(dataRows) To UBound(dataRows)
+        Dim line As String, routeValue As String, tasksValue As String
+        line = Trim(dataRows(i))
+
+        If InStr(line, "Route:") > 0 And InStr(line, "Tasks Left:") > 0 Then
+            routeValue = Trim(Mid(line, InStr(line, "Route:") + 7, _
+                            InStr(line, ", Tasks Left:") - InStr(line, "Route:") - 7))
+            tasksValue = Trim(Mid(line, InStr(line, "Tasks Left:") + 12))
+
+            If tasksValue <> "0" Then
+                routeTasks(CStr(routeValue)) = tasksValue
+            End If
+        End If
+    Next i
+
+    ' Sista rad baserat på kolumn A (vakter)
+    lastRow = ws.Cells(ws.Rows.Count, 1).End(xlUp).Row
+
+    notFoundList = ""
+
+    ' Uppdatera Tasks Left i målk kolumn
+    For i = 2 To lastRow
+        vakt = Trim(CStr(ws.Cells(i, 1).Value))                 ' Kolumn A
+        vaktAlt = Trim(CStr(ws.Cells(i, searchColIndex).Value))  ' Kolumn Q eller R
+
+        If routeTasks.Exists(vakt) Then
+            ws.Cells(i, tasksCol).Value = routeTasks(vakt)
+            matchedCount = matchedCount + 1
+        ElseIf routeTasks.Exists(vaktAlt) Then
+            ws.Cells(i, tasksCol).Value = routeTasks(vaktAlt)
+            matchedCount = matchedCount + 1
+        Else
+            notFoundList = notFoundList & "Rad " & i & ": " & vakt & "/" & vaktAlt & vbNewLine
+        End If
+    Next i
+
+    If matchedCount > 0 Then
+        MsgBox "Tasks Left har uppdaterats i kolumn " & ColLetter(tasksCol) & _
+               " för " & matchedCount & " vakter!", vbInformation
+    Else
+        MsgBox "Inga vakter kunde matchas. Kontrollera datan i kolumn A, " & searchCol & " och " & inputCell & ".", vbExclamation
+    End If
+
+    If notFoundList <> "" Then
+        Debug.Print "Följande vakter kunde inte matchas:" & vbNewLine & notFoundList
+    End If
+End Sub
+
+' ===== VARDAG (söker i A och Q), skriver K–O =====
+Sub UpdateTasks_1830()
+    Call UpdateTasksLeft("J1", Columns("K").Column, "Q") ' K (11)
+End Sub
+
+Sub UpdateTasks_1930()
+    Call UpdateTasksLeft("J1", Columns("L").Column, "Q") ' L (12)
+End Sub
+
+Sub UpdateTasks_2030()
+    Call UpdateTasksLeft("J1", Columns("M").Column, "Q") ' M (13)
+End Sub
+
+Sub UpdateTasks_2100()
+    Call UpdateTasksLeft("J1", Columns("N").Column, "Q") ' N (14)
+End Sub
+
+Sub UpdateTasks_2130()
+    Call UpdateTasksLeft("J1", Columns("O").Column, "Q") ' O (15)
+End Sub
+
+' ===== LÖRDAG (söker i A och T), skriver L–P =====
+Sub UpdateTasks_Lördag_1230()
+    Call UpdateTasksLeft("J1", Columns("L").Column, "T") ' L (12)
+End Sub
+
+Sub UpdateTasks_Lördag_1330()
+    Call UpdateTasksLeft("J1", Columns("M").Column, "T") ' M (13)
+End Sub
+
+Sub UpdateTasks_Lördag_1430()
+    Call UpdateTasksLeft("J1", Columns("N").Column, "T") ' N (14)
+End Sub
+
+Sub UpdateTasks_Lördag_1530()
+    Call UpdateTasksLeft("J1", Columns("O").Column, "T") ' O (15)
+End Sub
+
+Sub UpdateTasks_Lördag_1630()
+    Call UpdateTasksLeft("J1", Columns("P").Column, "T") ' P (16)
+End Sub
+Sub UpdateTasks_Lördag_1700()
+    Call UpdateTasksLeft("J1", Columns("Q").Column, "T") ' Q (17)
+End Sub
+Sub UpdateTasks_Lördag_1730()
+    Call UpdateTasksLeft("J1", Columns("R").Column, "T") ' R (18)
+End Sub

@@ -1,0 +1,33 @@
+const rows = document.querySelectorAll("table tr");
+const data = [];
+
+rows.forEach(row => {
+    // Hoppa över rader utan celler (t.ex. header)
+    const tds = row.querySelectorAll("td");
+    if (!tds.length) return;
+
+    const regNrElement   = row.querySelector("td:nth-child(6)"); // Registreringsnummer
+    const fuelElement    = row.querySelector("td:nth-child(3)"); // Bränsle
+    const batteryElement = row.querySelector("td:nth-child(4)"); // HV-batterinivå
+
+    if (regNrElement) {
+        const regNr  = regNrElement.innerText.trim();
+        const fuel   = fuelElement ? fuelElement.innerText.trim() : null;
+        const battery = batteryElement ? batteryElement.innerText.trim() : null;
+
+        // Försök alltid använda batteri först om det finns
+        if (battery && battery !== "–" && battery !== "-") {
+            const cleanedBattery = battery.replace("%", "").trim();
+            data.push(`Car: ${regNr}, Battery: ${cleanedBattery}`);
+        } 
+        // Annars använd bränsle
+        else if (fuel && fuel !== "–" && fuel !== "-") {
+            const cleanedFuel = fuel.replace(/[lL]/g, "").trim();
+            data.push(`Car: ${regNr}, Fuel: ${cleanedFuel}`);
+        }
+    }
+});
+
+// Logga + kopiera
+console.log(data.join("\n"));
+copy(data.join("\n"));
