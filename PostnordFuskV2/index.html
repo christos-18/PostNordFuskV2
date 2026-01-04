@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="sv">
 <head>
@@ -161,6 +162,22 @@
         <small>Inloggad som: <span id="currentUser">Ingen</span></small>
         <button class="logout-btn" id="logoutBtn" style="display:none;">Logga ut</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Activity Console -->
+  <button class="console-toggle-btn" id="consoleToggleBtn">📊</button>
+
+  <div class="activity-console" id="activityConsole">
+    <div class="console-header">
+      <h3>📊 Aktivitetslogg</h3>
+      <div class="console-controls">
+        <span class="online-count" id="onlineCount">● Aktiv</span>
+        <button class="console-close-btn" id="consoleCloseBtn">✕</button>
+      </div>
+    </div>
+    <div class="console-body" id="consoleBody">
+      <!-- Activity items rendered here -->
     </div>
   </div>
 

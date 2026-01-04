@@ -263,6 +263,9 @@ async function initializeApp() {
     await loadDefaultScriptsFromFiles();
     renderButtons();
   }
+  
+  // Initialize activity console
+  await initActivityConsole();
 }
 
 // Ladda default scripts från filer (körs bara första gången)
@@ -980,6 +983,9 @@ function renderButtons() {
         fallbackCopy(textToCopy);
       }
 
+      // Log button click to activity log
+      await logButtonClick(key);
+
       btn.classList.add('clicked');
       btn.innerHTML = '✅ Kopierat!';
       setTimeout(() => {
@@ -1040,6 +1046,157 @@ function fallbackCopy(text) {
   document.execCommand('copy');
   document.body.removeChild(ta);
 }
+
+// ===== ACTIVITY CONSOLE =====
+
+const consoleToggleBtn = document.getElementById('consoleToggleBtn');
+const activityConsole = document.getElementById('activityConsole');
+const consoleCloseBtn = document.getElementById('consoleCloseBtn');
+const consoleBody = document.getElementById('consoleBody');
+const onlineCount = document.getElementById('onlineCount');
+
+let activitySubscription = null;
+const MAX_ACTIVITIES = 100; // Begränsa antal aktiviteter i konsolen
+
+// Toggle console
+if (consoleToggleBtn) {
+  consoleToggleBtn.onclick = () => {
+    activityConsole.classList.toggle('active');
+    if (activityConsole.classList.contains('active')) {
+      loadRecentActivities();
+    }
+  };
+}
+
+if (consoleCloseBtn) {
+  consoleCloseBtn.onclick = () => {
+    activityConsole.classList.remove('active');
+  };
+}
+
+// Log button click to Supabase
+async function logButtonClick(buttonId) {
+  if (!supabaseClient) return;
+
+  const buttonName = (scriptNames[buttonId] || buttonId).replace(/<br>/g, ' ');
+  const userName = currentUser || 'Anonym';
+
+  try {
+    const { error } = await supabaseClient
+      .from('activity_log')
+      .insert({
+        button_id: buttonId,
+        button_name: buttonName,
+        user_name: userName
+      });
+
+    if (error) {
+      console.error('Failed to log activity:', error);
+    }
+  } catch (err) {
+    console.error('Activity log error:', err);
+  }
+}
+
+// Load recent activities
+async function loadRecentActivities() {
+  if (!supabaseClient) return;
+
+  try {
+    const { data, error } = await supabaseClient
+      .from('activity_log')
+      .select('*')
+      .order('timestamp', { ascending: false })
+      .limit(50);
+
+    if (error) {
+      console.error('Failed to load activities:', error);
+      return;
+    }
+
+    consoleBody.innerHTML = '';
+    data.forEach(activity => {
+      addActivityToConsole(activity);
+    });
+  } catch (err) {
+    console.error('Load activities error:', err);
+  }
+}
+
+// Add activity to console
+function addActivityToConsole(activity) {
+  const item = document.createElement('div');
+  item.className = 'activity-item';
+  
+  // Get category from button_id
+  const category = scriptCategories[activity.button_id] || 'custom';
+  item.classList.add(category);
+
+  const timeAgo = getTimeAgo(new Date(activity.timestamp));
+  
+  item.innerHTML = `
+    <div>
+      <span class="activity-user">${activity.user_name}</span>
+      <span class="activity-action">kopierade</span>
+      <span class="activity-button">${activity.button_name}</span>
+    </div>
+    <span class="activity-time">${timeAgo}</span>
+  `;
+
+  // Insert at the beginning (newest first)
+  consoleBody.insertBefore(item, consoleBody.firstChild);
+
+  // Limit activities
+  while (consoleBody.children.length > MAX_ACTIVITIES) {
+    consoleBody.removeChild(consoleBody.lastChild);
+  }
+}
+
+// Time ago helper
+function getTimeAgo(date) {
+  const seconds = Math.floor((new Date() - date) / 1000);
+  
+  if (seconds < 60) return 'just nu';
+  if (seconds < 3600) return `${Math.floor(seconds / 60)} min sedan`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)} tim sedan`;
+  return `${Math.floor(seconds / 86400)} dagar sedan`;
+}
+
+// Setup realtime subscription for activities
+function setupActivitySubscription() {
+  if (!supabaseClient) return;
+
+  activitySubscription = supabaseClient
+    .channel('activity_log_changes')
+    .on('postgres_changes', {
+      event: 'INSERT',
+      schema: 'public',
+      table: 'activity_log'
+    }, (payload) => {
+      if (payload.new) {
+        addActivityToConsole(payload.new);
+      }
+    })
+    .subscribe();
+}
+
+// Update online count (optional - requires presence tracking)
+async function updateOnlineCount() {
+  // This is a simple placeholder - you can implement proper presence tracking
+  if (onlineCount) {
+    onlineCount.textContent = '● Aktiv';
+  }
+}
+
+// Initialize activity console
+async function initActivityConsole() {
+  if (supabaseClient) {
+    setupActivitySubscription();
+    updateOnlineCount();
+  }
+}
+
+// ===== END ACTIVITY CONSOLE =====
 
 // Initialize the app
 initializeApp();
