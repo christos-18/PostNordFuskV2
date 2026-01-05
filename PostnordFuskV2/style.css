@@ -1117,6 +1117,22 @@ textarea {
   outline: none;
   border-color: #48bb78;
 }
+.remember-me {
+  display: flex;
+  align-items: center;
+  color: #ccc;
+  font-size: 14px;
+  cursor: pointer;
+  margin-bottom: 15px;
+  user-select: none;
+}
+.remember-me input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  margin-right: 10px;
+  cursor: pointer;
+  accent-color: #48bb78;
+}
 .login-error {
   color: #e53e3e;
   font-size: 14px;

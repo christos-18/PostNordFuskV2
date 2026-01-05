@@ -23,15 +23,24 @@ let supabaseEnabled = false;
 // Vänta på att Supabase laddas
 if (typeof window !== 'undefined') {
   // Kontrollera om credentials är konfigurerade
-  if (SUPABASE_URL !== 'https://ditt-projekt.supabase.co' && 
+  if (SUPABASE_URL !== 'https://ditt-projekt.supabase.co' &&
       SUPABASE_ANON_KEY !== 'din-anon-key-här') {
     try {
       // Vänta på att window.supabase laddas
-      const checkSupabase = () => {
+      const checkSupabase = async () => {
         if (window.supabase && window.supabase.createClient) {
           supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
           supabaseEnabled = true;
           console.log('✅ Supabase ansluten!');
+
+          // Check for existing session and restore user
+          const { data: { session } } = await supabaseClient.auth.getSession();
+          if (session && session.user) {
+            currentUser = session.user.email;
+            localStorage.setItem('postnord_user', currentUser);
+            updateLoginStatus();
+            console.log('✅ Session återställd för:', currentUser);
+          }
         } else {
           console.log('⏳ Väntar på Supabase SDK...');
           setTimeout(checkSupabase, 100);
@@ -86,8 +95,8 @@ const users = {
   // Lägg till fler användare här
 };
 
-// Load saved user session
-const savedUser = localStorage.getItem('postnord_user');
+// Load saved user session (check both localStorage and sessionStorage)
+const savedUser = localStorage.getItem('postnord_user') || sessionStorage.getItem('postnord_user');
 if (savedUser) {
   currentUser = savedUser;
 }
@@ -632,16 +641,18 @@ loginConfirm.onclick = async () => {
     }
 
     currentUser = data.user.email;
-    localStorage.setItem('postnord_user', currentUser);
+
+    // Save session based on "remember me" checkbox
+    const rememberMe = document.getElementById('rememberMe').checked;
+    if (rememberMe) {
+      localStorage.setItem('postnord_user', currentUser);
+    } else {
+      sessionStorage.setItem('postnord_user', currentUser);
+      localStorage.removeItem('postnord_user');
+    }
+
     updateLoginStatus();
     loginDialog.classList.remove('active');
-
-    // Open editor after successful login
-    modal.classList.add('active');
-    renderScriptList();
-    if (!currentScript && scriptOrder.length > 0) {
-      selectScript(scriptOrder[0]);
-    }
   } catch (err) {
     loginError.textContent = '❌ Inloggning misslyckades';
     console.error('Login error:', err);
@@ -1102,7 +1113,8 @@ async function logButtonClick(buttonId) {
       .insert({
         button_id: buttonId,
         button_name: buttonName,
-        user_name: userName
+        user_name: userName,
+        timestamp: new Date().toISOString()
       });
 
     if (error) {
@@ -1121,7 +1133,7 @@ async function loadRecentActivities() {
     const { data, error } = await supabaseClient
       .from('activity_log')
       .select('*')
-      .order('timestamp', { ascending: true })
+      .order('timestamp', { ascending: false })
       .limit(50);
 
     if (error) {
@@ -1131,12 +1143,12 @@ async function loadRecentActivities() {
 
     consoleBody.innerHTML = '';
     loadedActivityIds.clear(); // Clear tracked IDs when reloading
-    
-    // Database returns in ascending order (oldest first, newest last)
-    // appendChild adds to bottom of DOM
-    // So: äldsta överst, nyaste underst (längst ner) ✓
-    // Loop through in order and append each to build: oldest at top, newest at bottom
-    data.forEach(activity => {
+
+    // Database returns in descending order (newest first)
+    // We reverse to get oldest first, then appendChild adds to bottom
+    // Result: oldest at top, newest at bottom ✓
+    const sortedData = [...data].reverse();
+    sortedData.forEach(activity => {
       if (activity.id && !loadedActivityIds.has(activity.id)) {
         loadedActivityIds.add(activity.id);
         const item = createActivityItem(activity);
