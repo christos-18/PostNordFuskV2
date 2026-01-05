@@ -12,6 +12,9 @@
 </head>
 <body>
   <div class="overlay">
+    <!-- Login Button (visible when not logged in) -->
+    <button class="login-btn" id="mainLoginBtn">🔐 Logga in</button>
+
     <!-- Settings -->
     <button class="settings-btn" id="settingsBtn">⚙️</button>
 
@@ -166,8 +169,15 @@
         <small>Inloggad som: <span id="currentUser">Ingen</span></small>
         <button class="logout-btn" id="logoutBtn" style="display:none;">Logga ut</button>
       </div>
+      <div class="login-register-link">
+        <span>Har du inget konto?</span>
+        <button class="link-btn" id="showRegisterBtn">Skapa konto</button>
+      </div>
     </div>
   </div>
+
+  <!-- Admin Button (only visible for admins) -->
+  <button class="admin-btn" id="adminBtn" style="display:none;">👥</button>
 
   <!-- Activity Console -->
   <button class="console-toggle-btn" id="consoleToggleBtn">📊</button>
@@ -182,6 +192,53 @@
     </div>
     <div class="console-body" id="consoleBody">
       <!-- Activity items rendered here -->
+    </div>
+  </div>
+
+  <!-- Admin Panel -->
+  <div class="admin-panel" id="adminPanel">
+    <div class="admin-panel-content">
+      <div class="admin-header">
+        <h2>👥 Användarhantering</h2>
+        <button class="close-btn" id="adminCloseBtn">✕</button>
+      </div>
+      <div class="admin-body">
+        <div class="admin-users-list" id="adminUsersList">
+          <!-- Users rendered here -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- General Confirm Dialog (replaces browser confirm) -->
+  <div class="custom-confirm-dialog" id="customConfirmDialog">
+    <div class="custom-confirm-content">
+      <div class="custom-confirm-icon" id="customConfirmIcon">⚠️</div>
+      <h3 id="customConfirmTitle">Bekräfta</h3>
+      <p id="customConfirmMessage">Är du säker?</p>
+      <div class="custom-confirm-buttons">
+        <button class="cancel-btn" id="customConfirmCancel">Avbryt</button>
+        <button class="confirm-btn" id="customConfirmOk">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Register Dialog -->
+  <div class="register-dialog" id="registerDialog">
+    <div class="register-dialog-content">
+      <h2>📝 Skapa konto</h2>
+      <p>Registrera dig för att använda systemet</p>
+      <input type="email" id="registerEmail" placeholder="E-postadress">
+      <input type="password" id="registerPassword" placeholder="Lösenord (minst 6 tecken)">
+      <input type="password" id="registerPasswordConfirm" placeholder="Bekräfta lösenord">
+      <div class="register-error" id="registerError"></div>
+      <div class="register-dialog-buttons">
+        <button class="cancel-btn" id="registerCancel">Avbryt</button>
+        <button class="confirm-btn" id="registerConfirm">Skapa konto</button>
+      </div>
+      <div class="register-info">
+        <small>Efter registrering behöver en admin godkänna ditt konto innan du kan redigera.</small>
+      </div>
     </div>
   </div>
 

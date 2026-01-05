@@ -40,6 +40,9 @@ if (typeof window !== 'undefined') {
             localStorage.setItem('postnord_user', currentUser);
             updateLoginStatus();
             console.log('✅ Session återställd för:', currentUser);
+
+            // Load permissions after session restore
+            await loadUserPermissions();
           }
         } else {
           console.log('⏳ Väntar på Supabase SDK...');
@@ -93,6 +96,14 @@ let currentUser = null;
 const users = {
   'admin': 'admin123',
   // Lägg till fler användare här
+};
+
+// User permissions
+let userPermissions = {
+  is_admin: false,
+  can_edit_main_scripts: false,
+  can_manage_custom_scripts: false,
+  can_edit_button_design: false
 };
 
 // Load saved user session (check both localStorage and sessionStorage)
@@ -305,6 +316,7 @@ async function loadDefaultScriptsFromFiles() {
 function updateLoginStatus() {
   const currentUserSpan = document.getElementById('currentUser');
   const logoutBtn = document.getElementById('logoutBtn');
+  const mainLoginBtn = document.getElementById('mainLoginBtn');
 
   if (currentUserSpan && logoutBtn) {
     if (currentUser) {
@@ -314,6 +326,11 @@ function updateLoginStatus() {
       currentUserSpan.textContent = 'Ingen';
       logoutBtn.style.display = 'none';
     }
+  }
+
+  // Show/hide main login button
+  if (mainLoginBtn) {
+    mainLoginBtn.style.display = currentUser ? 'none' : 'flex';
   }
 
   // Update user badge on main page
@@ -406,7 +423,25 @@ settingsBtn.onclick = () => {
     return;
   }
 
+  // Check if user has any permission
+  if (!hasAnyPermission()) {
+    showConfirm({
+      title: 'Ingen behörighet',
+      message: 'Du har inga redigeringsbehörigheter. Kontakta en admin för att få tillgång.',
+      icon: '🔒',
+      confirmText: 'OK',
+      cancelText: 'Stäng'
+    });
+    return;
+  }
+
   modal.classList.add('active');
+
+  // Show/hide add script button based on permission
+  if (addScriptBtn) {
+    addScriptBtn.style.display = canManageCustomScripts() ? 'block' : 'none';
+  }
+
   renderScriptList();
   if (!currentScript && scriptOrder.length > 0) {
     selectScript(scriptOrder[0]);
@@ -465,11 +500,15 @@ function renderScriptList() {
 
     item.appendChild(dragHandle);
     item.appendChild(nameSpan);
-    item.appendChild(designBtn);
 
-    // Only show delete button for scripts that aren't the default 10
+    // Only show design button if user has permission
+    if (canEditButtonDesign()) {
+      item.appendChild(designBtn);
+    }
+
+    // Only show delete button for custom scripts and if user has permission
     const isDefaultScript = ['btn1', 'btn2', 'btn3', 'btn4', 'btn5', 'btn6', 'btn7', 'btn8', 'btn9', 'btn10'].includes(key);
-    if (!isDefaultScript) {
+    if (!isDefaultScript && canManageCustomScripts()) {
       item.appendChild(deleteBtn);
     }
 
@@ -565,7 +604,18 @@ function handleDragEnter(e) {
 }
 
 // Add new script
-addScriptBtn.onclick = () => {
+addScriptBtn.onclick = async () => {
+  if (!canManageCustomScripts()) {
+    await showConfirm({
+      title: 'Ingen behörighet',
+      message: 'Du har inte behörighet att skapa nya scripts.',
+      icon: '🔒',
+      confirmText: 'OK',
+      cancelText: 'Stäng'
+    });
+    return;
+  }
+
   console.log('Add script clicked');
   scriptNameInput.value = '';
   scriptEmojiInput.value = '';
@@ -652,6 +702,10 @@ loginConfirm.onclick = async () => {
     }
 
     updateLoginStatus();
+
+    // Load user permissions
+    await loadUserPermissions();
+
     loginDialog.classList.remove('active');
   } catch (err) {
     loginError.textContent = '❌ Inloggning misslyckades';
@@ -664,13 +718,28 @@ loginCancel.onclick = () => {
 };
 
 logoutBtn.onclick = async () => {
-  if (confirm('Vill du logga ut?')) {
+  const confirmed = await showConfirm({
+    title: 'Logga ut',
+    message: 'Vill du logga ut från ditt konto?',
+    icon: '👋',
+    confirmText: 'Logga ut',
+    cancelText: 'Avbryt'
+  });
+
+  if (confirmed) {
     currentUser = null;
     localStorage.removeItem('postnord_user');
+    userPermissions = {
+      is_admin: false,
+      can_edit_main_scripts: false,
+      can_manage_custom_scripts: false,
+      can_edit_button_design: false
+    };
     updateLoginStatus();
+    updateUIForPermissions();
     modal.classList.remove('active');
     loginDialog.classList.remove('active');
-    
+
     // Sign out from Supabase
     if (supabaseClient) {
       await supabaseClient.auth.signOut();
@@ -680,18 +749,501 @@ logoutBtn.onclick = async () => {
 
 // Badge logout button
 badgeLogoutBtn.onclick = async () => {
-  if (confirm('Vill du logga ut?')) {
+  const confirmed = await showConfirm({
+    title: 'Logga ut',
+    message: 'Vill du logga ut från ditt konto?',
+    icon: '👋',
+    confirmText: 'Logga ut',
+    cancelText: 'Avbryt'
+  });
+
+  if (confirmed) {
     currentUser = null;
     localStorage.removeItem('postnord_user');
+    userPermissions = {
+      is_admin: false,
+      can_edit_main_scripts: false,
+      can_manage_custom_scripts: false,
+      can_edit_button_design: false
+    };
     updateLoginStatus();
+    updateUIForPermissions();
     modal.classList.remove('active');
-    
+
     // Sign out from Supabase
     if (supabaseClient) {
       await supabaseClient.auth.signOut();
     }
   }
 };
+
+// ===== PERMISSIONS SYSTEM =====
+
+// Load user permissions from Supabase
+async function loadUserPermissions() {
+  if (!supabaseClient || !currentUser) {
+    userPermissions = {
+      is_admin: false,
+      can_edit_main_scripts: false,
+      can_manage_custom_scripts: false,
+      can_edit_button_design: false
+    };
+    return;
+  }
+
+  try {
+    const { data, error } = await supabaseClient
+      .from('user_permissions')
+      .select('*')
+      .eq('email', currentUser)
+      .single();
+
+    if (error) {
+      userPermissions = {
+        is_admin: false,
+        can_edit_main_scripts: false,
+        can_manage_custom_scripts: false,
+        can_edit_button_design: false
+      };
+    } else if (data) {
+      userPermissions = {
+        is_admin: data.is_admin || false,
+        can_edit_main_scripts: data.can_edit_main_scripts || false,
+        can_manage_custom_scripts: data.can_manage_custom_scripts || false,
+        can_edit_button_design: data.can_edit_button_design || false
+      };
+    }
+  } catch (err) {
+    console.error('Error loading permissions:', err);
+  }
+
+  updateUIForPermissions();
+}
+
+// Update UI based on permissions
+function updateUIForPermissions() {
+  const adminBtn = document.getElementById('adminBtn');
+  const settingsBtn = document.getElementById('settingsBtn');
+
+  // Show admin button only for admins
+  if (adminBtn) {
+    adminBtn.style.display = userPermissions.is_admin ? 'flex' : 'none';
+  }
+
+  // Show settings button only if user has any editing permission
+  const hasAnyEditPermission =
+    userPermissions.can_edit_main_scripts ||
+    userPermissions.can_manage_custom_scripts ||
+    userPermissions.can_edit_button_design;
+
+  if (settingsBtn && currentUser) {
+    settingsBtn.style.opacity = hasAnyEditPermission ? '1' : '0.5';
+  }
+}
+
+// Check if user can perform action
+function canEditMainScripts() {
+  return userPermissions.is_admin || userPermissions.can_edit_main_scripts;
+}
+
+function canManageCustomScripts() {
+  return userPermissions.is_admin || userPermissions.can_manage_custom_scripts;
+}
+
+function canEditButtonDesign() {
+  return userPermissions.is_admin || userPermissions.can_edit_button_design;
+}
+
+function hasAnyPermission() {
+  return userPermissions.is_admin ||
+    userPermissions.can_edit_main_scripts ||
+    userPermissions.can_manage_custom_scripts ||
+    userPermissions.can_edit_button_design;
+}
+
+// ===== ADMIN PANEL =====
+
+const adminBtn = document.getElementById('adminBtn');
+const adminPanel = document.getElementById('adminPanel');
+const adminCloseBtn = document.getElementById('adminCloseBtn');
+const adminUsersList = document.getElementById('adminUsersList');
+
+if (adminBtn) {
+  adminBtn.onclick = async () => {
+    adminPanel.classList.add('active');
+    await loadAllUsers();
+  };
+}
+
+if (adminCloseBtn) {
+  adminCloseBtn.onclick = () => {
+    adminPanel.classList.remove('active');
+  };
+}
+
+if (adminPanel) {
+  adminPanel.onclick = (e) => {
+    if (e.target === adminPanel) {
+      adminPanel.classList.remove('active');
+    }
+  };
+}
+
+// Load all users for admin panel
+async function loadAllUsers() {
+  if (!supabaseClient || !userPermissions.is_admin) return;
+
+  adminUsersList.innerHTML = '<p style="color: #888; text-align: center;">Laddar användare...</p>';
+
+  try {
+    const { data, error } = await supabaseClient
+      .from('user_permissions')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error loading users:', error);
+      adminUsersList.innerHTML = '<p style="color: #f87171; text-align: center;">Kunde inte ladda användare</p>';
+      return;
+    }
+
+    renderUsersList(data || []);
+  } catch (err) {
+    console.error('Error:', err);
+  }
+}
+
+// Render users list in admin panel
+function renderUsersList(users) {
+  if (users.length === 0) {
+    adminUsersList.innerHTML = '<p style="color: #888; text-align: center;">Inga användare hittades</p>';
+    return;
+  }
+
+  adminUsersList.innerHTML = users.map(user => {
+    const permCount = [user.can_edit_main_scripts, user.can_manage_custom_scripts, user.can_edit_button_design].filter(Boolean).length;
+
+    let cardClass = 'admin-user-card';
+    let badgeClass = 'admin-user-badge';
+    let badgeText = '';
+
+    if (user.is_admin) {
+      cardClass += ' is-admin';
+      badgeClass += ' admin';
+      badgeText = 'Admin';
+    } else if (permCount > 0) {
+      cardClass += ' has-permissions';
+      badgeClass += ' active';
+      badgeText = `${permCount} behörighet${permCount > 1 ? 'er' : ''}`;
+    } else {
+      badgeClass += ' pending';
+      badgeText = 'Inga behörigheter';
+    }
+
+    const isCurrentUser = user.email === currentUser;
+
+    return `
+      <div class="${cardClass}" data-user-id="${user.id}">
+        <div class="admin-user-header">
+          <span class="admin-user-email">${user.email}${isCurrentUser ? ' (du)' : ''}</span>
+          <span class="${badgeClass}">${badgeText}</span>
+        </div>
+        <div class="admin-permissions">
+          <div class="admin-permission-item ${isCurrentUser ? 'disabled' : ''}">
+            <input type="checkbox" id="admin_${user.id}"
+              ${user.is_admin ? 'checked' : ''}
+              ${isCurrentUser ? 'disabled' : ''}
+              onchange="updatePermission('${user.id}', 'is_admin', this.checked)">
+            <label for="admin_${user.id}">Admin</label>
+          </div>
+          <div class="admin-permission-item">
+            <input type="checkbox" id="main_${user.id}"
+              ${user.can_edit_main_scripts ? 'checked' : ''}
+              onchange="updatePermission('${user.id}', 'can_edit_main_scripts', this.checked)">
+            <label for="main_${user.id}">Redigera huvudscripts</label>
+          </div>
+          <div class="admin-permission-item">
+            <input type="checkbox" id="custom_${user.id}"
+              ${user.can_manage_custom_scripts ? 'checked' : ''}
+              onchange="updatePermission('${user.id}', 'can_manage_custom_scripts', this.checked)">
+            <label for="custom_${user.id}">Hantera custom scripts</label>
+          </div>
+          <div class="admin-permission-item">
+            <input type="checkbox" id="design_${user.id}"
+              ${user.can_edit_button_design ? 'checked' : ''}
+              onchange="updatePermission('${user.id}', 'can_edit_button_design', this.checked)">
+            <label for="design_${user.id}">Redigera knappdesign</label>
+          </div>
+        </div>
+        ${!isCurrentUser ? `
+          <div class="admin-user-delete">
+            <button class="admin-delete-btn" onclick="deleteUser('${user.id}', '${user.email}')">🗑️ Ta bort användare</button>
+          </div>
+        ` : ''}
+      </div>
+    `;
+  }).join('');
+}
+
+// Update user permission
+async function updatePermission(userId, permission, value) {
+  if (!supabaseClient || !userPermissions.is_admin) return;
+
+  try {
+    const updateData = {
+      [permission]: value,
+      updated_at: new Date().toISOString()
+    };
+
+    const { error } = await supabaseClient
+      .from('user_permissions')
+      .update(updateData)
+      .eq('id', userId);
+
+    if (error) {
+      console.error('Error updating permission:', error);
+      alert('Kunde inte uppdatera behörighet');
+      // Reload to reset checkbox state
+      await loadAllUsers();
+    } else {
+      console.log(`Updated ${permission} to ${value} for user ${userId}`);
+    }
+  } catch (err) {
+    console.error('Error:', err);
+  }
+}
+
+// ===== REGISTRATION =====
+
+const registerDialog = document.getElementById('registerDialog');
+const registerEmail = document.getElementById('registerEmail');
+const registerPassword = document.getElementById('registerPassword');
+const registerPasswordConfirm = document.getElementById('registerPasswordConfirm');
+const registerConfirm = document.getElementById('registerConfirm');
+const registerCancel = document.getElementById('registerCancel');
+const registerError = document.getElementById('registerError');
+const showRegisterBtn = document.getElementById('showRegisterBtn');
+
+if (showRegisterBtn) {
+  showRegisterBtn.onclick = () => {
+    loginDialog.classList.remove('active');
+    registerDialog.classList.add('active');
+    registerEmail.value = '';
+    registerPassword.value = '';
+    registerPasswordConfirm.value = '';
+    registerError.textContent = '';
+    registerEmail.focus();
+  };
+}
+
+if (registerCancel) {
+  registerCancel.onclick = () => {
+    registerDialog.classList.remove('active');
+    loginDialog.classList.add('active');
+  };
+}
+
+if (registerConfirm) {
+  registerConfirm.onclick = async () => {
+    const email = registerEmail.value.trim();
+    const password = registerPassword.value;
+    const passwordConfirm = registerPasswordConfirm.value;
+
+    // Validation
+    if (!email || !password || !passwordConfirm) {
+      registerError.textContent = 'Fyll i alla fält';
+      return;
+    }
+
+    if (password !== passwordConfirm) {
+      registerError.textContent = 'Lösenorden matchar inte';
+      return;
+    }
+
+    if (password.length < 6) {
+      registerError.textContent = 'Lösenordet måste vara minst 6 tecken';
+      return;
+    }
+
+    if (!supabaseClient) {
+      registerError.textContent = 'Supabase inte tillgänglig';
+      return;
+    }
+
+    try {
+      // Create user in Supabase Auth
+      const { data, error } = await supabaseClient.auth.signUp({
+        email: email,
+        password: password
+      });
+
+      if (error) {
+        registerError.textContent = error.message;
+        return;
+      }
+
+      if (data.user) {
+        // Create permissions entry with no permissions
+        const { error: permError } = await supabaseClient
+          .from('user_permissions')
+          .insert({
+            user_id: data.user.id,
+            email: email,
+            is_admin: false,
+            can_edit_main_scripts: false,
+            can_manage_custom_scripts: false,
+            can_edit_button_design: false
+          });
+
+        if (permError) {
+          console.error('Error creating permissions:', permError);
+        }
+
+        // Show success message
+        registerDialog.classList.remove('active');
+        await showConfirm({
+          title: 'Konto skapat!',
+          message: 'Du kan nu logga in. En admin behöver ge dig behörigheter innan du kan redigera.',
+          icon: '✅',
+          confirmText: 'Logga in',
+          cancelText: 'Stäng'
+        });
+        loginDialog.classList.add('active');
+        loginUsername.value = email;
+        loginPassword.focus();
+      }
+    } catch (err) {
+      console.error('Registration error:', err);
+      registerError.textContent = 'Registrering misslyckades';
+    }
+  };
+}
+
+// Allow Enter to register
+if (registerEmail && registerPassword && registerPasswordConfirm) {
+  registerEmail.onkeypress = registerPassword.onkeypress = registerPasswordConfirm.onkeypress = (e) => {
+    if (e.key === 'Enter') {
+      registerConfirm.click();
+    }
+  };
+}
+
+// ===== CUSTOM CONFIRM DIALOG =====
+
+const customConfirmDialog = document.getElementById('customConfirmDialog');
+const customConfirmIcon = document.getElementById('customConfirmIcon');
+const customConfirmTitle = document.getElementById('customConfirmTitle');
+const customConfirmMessage = document.getElementById('customConfirmMessage');
+const customConfirmOk = document.getElementById('customConfirmOk');
+const customConfirmCancel = document.getElementById('customConfirmCancel');
+
+let confirmResolve = null;
+
+// Show custom confirm dialog (returns Promise)
+function showConfirm(options = {}) {
+  const {
+    title = 'Bekräfta',
+    message = 'Är du säker?',
+    icon = '⚠️',
+    confirmText = 'OK',
+    cancelText = 'Avbryt',
+    danger = false
+  } = options;
+
+  customConfirmIcon.textContent = icon;
+  customConfirmTitle.textContent = title;
+  customConfirmMessage.textContent = message;
+  customConfirmOk.textContent = confirmText;
+  customConfirmCancel.textContent = cancelText;
+
+  if (danger) {
+    customConfirmOk.classList.add('danger');
+  } else {
+    customConfirmOk.classList.remove('danger');
+  }
+
+  customConfirmDialog.classList.add('active');
+
+  return new Promise((resolve) => {
+    confirmResolve = resolve;
+  });
+}
+
+if (customConfirmOk) {
+  customConfirmOk.onclick = () => {
+    customConfirmDialog.classList.remove('active');
+    if (confirmResolve) confirmResolve(true);
+  };
+}
+
+if (customConfirmCancel) {
+  customConfirmCancel.onclick = () => {
+    customConfirmDialog.classList.remove('active');
+    if (confirmResolve) confirmResolve(false);
+  };
+}
+
+if (customConfirmDialog) {
+  customConfirmDialog.onclick = (e) => {
+    if (e.target === customConfirmDialog) {
+      customConfirmDialog.classList.remove('active');
+      if (confirmResolve) confirmResolve(false);
+    }
+  };
+}
+
+// ===== DELETE USER =====
+
+async function deleteUser(userId, userEmail) {
+  const confirmed = await showConfirm({
+    title: 'Ta bort användare',
+    message: `Är du säker på att du vill ta bort ${userEmail}?`,
+    icon: '🗑️',
+    confirmText: 'Ta bort',
+    cancelText: 'Avbryt',
+    danger: true
+  });
+
+  if (!confirmed) return;
+
+  try {
+    const { error } = await supabaseClient
+      .from('user_permissions')
+      .delete()
+      .eq('id', userId);
+
+    if (error) {
+      console.error('Error deleting user:', error);
+      await showConfirm({
+        title: 'Fel',
+        message: 'Kunde inte ta bort användaren',
+        icon: '❌',
+        confirmText: 'OK',
+        cancelText: 'Stäng'
+      });
+    } else {
+      await loadAllUsers();
+    }
+  } catch (err) {
+    console.error('Error:', err);
+  }
+}
+
+// ===== MAIN LOGIN BUTTON =====
+
+const mainLoginBtn = document.getElementById('mainLoginBtn');
+
+if (mainLoginBtn) {
+  mainLoginBtn.onclick = () => {
+    loginError.textContent = '';
+    loginUsername.value = '';
+    loginPassword.value = '';
+    loginDialog.classList.add('active');
+    loginUsername.focus();
+  };
+}
+
+// ===== END PERMISSIONS & ADMIN =====
 
 // Allow Enter to login
 loginUsername.onkeypress = loginPassword.onkeypress = (e) => {
@@ -701,11 +1253,28 @@ loginUsername.onkeypress = loginPassword.onkeypress = (e) => {
 };
 
 // Delete script (only custom scripts can be deleted)
-function deleteScript(key) {
+async function deleteScript(key) {
   const isDefaultScript = ['btn1', 'btn2', 'btn3', 'btn4', 'btn5', 'btn6', 'btn7', 'btn8', 'btn9', 'btn10'].includes(key);
-  
+
   if (isDefaultScript) {
-    alert('Du kan inte ta bort de 10 förvalda scripten.');
+    await showConfirm({
+      title: 'Kan inte ta bort',
+      message: 'De 10 förvalda scripten kan inte tas bort.',
+      icon: '⚠️',
+      confirmText: 'OK',
+      cancelText: 'Stäng'
+    });
+    return;
+  }
+
+  if (!canManageCustomScripts()) {
+    await showConfirm({
+      title: 'Ingen behörighet',
+      message: 'Du har inte behörighet att ta bort scripts.',
+      icon: '🔒',
+      confirmText: 'OK',
+      cancelText: 'Stäng'
+    });
     return;
   }
 
@@ -751,7 +1320,18 @@ confirmDelete.onclick = () => {
 // ===== BUTTON DESIGNER =====
 
 // Open button designer
-function openButtonDesigner(buttonKey) {
+async function openButtonDesigner(buttonKey) {
+  if (!canEditButtonDesign()) {
+    await showConfirm({
+      title: 'Ingen behörighet',
+      message: 'Du har inte behörighet att redigera knappdesign.',
+      icon: '🔒',
+      confirmText: 'OK',
+      cancelText: 'Stäng'
+    });
+    return;
+  }
+
   currentDesigningButton = buttonKey;
   
   // Load existing style or use default
@@ -1034,17 +1614,37 @@ async function selectScript(key) {
 saveBtn.onclick = () => {
   if (!currentScript) return;
 
+  // Check permissions
+  const isMainScript = ['btn1', 'btn2', 'btn3', 'btn4', 'btn5', 'btn6', 'btn7', 'btn8', 'btn9', 'btn10'].includes(currentScript);
+
+  if (isMainScript && !canEditMainScripts()) {
+    showStatus('❌ Du har inte behörighet att redigera huvudscripts');
+    return;
+  }
+
+  if (!isMainScript && !canManageCustomScripts()) {
+    showStatus('❌ Du har inte behörighet att redigera custom scripts');
+    return;
+  }
+
   customScripts[currentScript] = codeEditor.value;
   currentScriptContent = codeEditor.value;
   saveCustomData();
   showStatus('✅ Sparat!');
 };
 
-resetBtn.onclick = () => {
+resetBtn.onclick = async () => {
   if (!currentScript) return;
 
-  if (confirm('Vill du återställa scriptet?')) {
-    // Ladda om från Supabase eller sätt till tom mall
+  const confirmed = await showConfirm({
+    title: 'Återställ script',
+    message: 'Vill du återställa scriptet till senast sparade version?',
+    icon: '↺',
+    confirmText: 'Återställ',
+    cancelText: 'Avbryt'
+  });
+
+  if (confirmed) {
     selectScript(currentScript);
     showStatus('↺ Återställd');
   }
