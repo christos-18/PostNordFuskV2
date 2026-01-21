@@ -91,6 +91,20 @@ let nextBtnId = 11;
 let customScripts = {}; // Alla scripts lagras här (både förvalda och custom)
 let buttonStyles = {}; // Custom styles för varje knapp
 
+// Script sections - vilken sektion varje knapp tillhör ('kvall' eller 'dag')
+let scriptSections = {
+  'btn1': 'kvall',
+  'btn2': 'kvall',
+  'btn3': 'kvall',
+  'btn4': 'kvall',
+  'btn5': 'kvall',
+  'btn6': 'kvall',
+  'btn7': 'kvall',
+  'btn8': 'kvall',
+  'btn9': 'kvall',
+  'btn10': 'kvall'
+};
+
 // User authentication
 let currentUser = null;
 const users = {
@@ -124,9 +138,10 @@ function saveCustomData() {
     categories: scriptCategories,
     order: scriptOrder,
     nextId: nextBtnId,
-    buttonStyles: buttonStyles
+    buttonStyles: buttonStyles,
+    sections: scriptSections
   }));
-  
+
   // Save to Supabase (async, don't wait)
   saveToSupabase();
 }
@@ -158,7 +173,8 @@ async function loadFromSupabase() {
         scriptOrder = supabaseData.order || scriptOrder;
         nextBtnId = supabaseData.nextId || nextBtnId;
         buttonStyles = supabaseData.buttonStyles || {};
-        
+        scriptSections = supabaseData.sections || scriptSections;
+
         console.log('✅ Data laddad från Supabase');
         return true;
       } else {
@@ -185,7 +201,8 @@ async function saveToSupabase() {
       categories: scriptCategories,
       order: scriptOrder,
       nextId: nextBtnId,
-      buttonStyles: buttonStyles
+      buttonStyles: buttonStyles,
+      sections: scriptSections
     };
 
     const { error } = await supabaseClient
@@ -227,6 +244,7 @@ function setupRealtimeSubscription() {
         scriptOrder = newData.order || scriptOrder;
         nextBtnId = newData.nextId || nextBtnId;
         buttonStyles = newData.buttonStyles || {};
+        scriptSections = newData.sections || scriptSections;
         if (newData.nextId) {
           nextBtnId = newData.nextId;
         }
@@ -255,6 +273,11 @@ async function initializeApp() {
       Object.keys(data.categories || {}).forEach(key => {
         if (!scriptCategories[key]) {
           scriptCategories[key] = data.categories[key];
+        }
+      });
+      Object.keys(data.sections || {}).forEach(key => {
+        if (!scriptSections[key]) {
+          scriptSections[key] = data.sections[key];
         }
       });
       scriptOrder = data.order || scriptOrder;
@@ -354,7 +377,8 @@ const saveBtn = document.getElementById('saveBtn');
 const resetBtn = document.getElementById('resetBtn');
 const statusMessage = document.getElementById('statusMessage');
 const addScriptBtn = document.getElementById('addScriptBtn');
-const buttonContainer = document.getElementById('buttonContainer');
+const buttonContainerKvall = document.getElementById('buttonContainerKvall');
+const buttonContainerDag = document.getElementById('buttonContainerDag');
 
 // Button Designer elements
 const buttonDesignerDialog = document.getElementById('buttonDesignerDialog');
@@ -636,12 +660,14 @@ dialogConfirm.onclick = () => {
 
   const emoji = scriptEmojiInput.value.trim() || '📝';
   const btnId = 'btn' + nextBtnId;
+  const selectedSection = document.getElementById('scriptSectionSelect').value;
 
   nextBtnId++;
   scriptNames[btnId] = emoji + ' ' + name;
   customScripts[btnId] = '// Nytt script\n// Skriv din kod här...';
   scriptOrder.push(btnId);
   scriptCategories[btnId] = 'custom';
+  scriptSections[btnId] = selectedSection;
 
   saveCustomData();
   renderButtons();
@@ -650,7 +676,7 @@ dialogConfirm.onclick = () => {
   showStatus('✅ Nytt script skapat!');
 
   inputDialog.classList.remove('active');
-  
+
   // Öppna button designer direkt för att designa den nya knappen
   setTimeout(() => openButtonDesigner(btnId), 300);
 };
@@ -1536,7 +1562,8 @@ function applyButtonStyle(btn, style) {
 
 // Render buttons on main page
 function renderButtons() {
-  buttonContainer.innerHTML = '';
+  buttonContainerKvall.innerHTML = '';
+  buttonContainerDag.innerHTML = '';
 
   // Guard against duplicate IDs in DOM
   const seenIds = new Set();
@@ -1584,7 +1611,7 @@ function renderButtons() {
           btn.innerHTML = '✅ Kopierat!';
         });
       });
-      
+
       setTimeout(() => {
         requestAnimationFrame(() => {
           btn.classList.remove('clicked');
@@ -1595,7 +1622,13 @@ function renderButtons() {
       }, 1500);
     });
 
-    buttonContainer.appendChild(btn);
+    // Lägg till knappen i rätt container baserat på sektion
+    const section = scriptSections[key] || 'kvall';
+    if (section === 'dag') {
+      buttonContainerDag.appendChild(btn);
+    } else {
+      buttonContainerKvall.appendChild(btn);
+    }
   });
 }
 

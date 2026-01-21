@@ -1829,3 +1829,56 @@ textarea {
   background: rgba(229, 62, 62, 0.3);
   border-color: rgba(229, 62, 62, 0.5);
 }
+
+/* Sections wrapper */
+.sections-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px;
+  gap: 20px;
+  width: 100%;
+}
+
+/* Section box - separata rutor */
+.section-box {
+  background: rgba(0,0,0,0.4);
+  border-radius: 15px;
+  padding: 30px;
+  max-width: 1000px;
+  width: 100%;
+  backdrop-filter: blur(10px);
+}
+
+.section-title {
+  color: #fff;
+  font-size: 1.5rem;
+  margin-bottom: 20px;
+  text-align: center;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+/* Section select in input dialog */
+.section-select-wrapper {
+  margin-bottom: 15px;
+}
+.section-select-wrapper label {
+  display: block;
+  color: #ccc;
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+.section-select-wrapper select {
+  width: 100%;
+  padding: 12px;
+  background: #1e1e1e;
+  border: 1px solid #444;
+  border-radius: 6px;
+  color: white;
+  font-size: 16px;
+  cursor: pointer;
+}
+.section-select-wrapper select:focus {
+  outline: none;
+  border-color: #48bb78;
+}

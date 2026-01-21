@@ -11,23 +11,31 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
-  <div class="overlay">
-    <!-- Login Button (visible when not logged in) -->
-    <button class="login-btn" id="mainLoginBtn">🔐 Logga in</button>
+  <!-- Login Button (visible when not logged in) -->
+  <button class="login-btn" id="mainLoginBtn">🔐 Logga in</button>
 
-    <!-- Settings -->
-    <button class="settings-btn" id="settingsBtn">⚙️</button>
+  <!-- Settings -->
+  <button class="settings-btn" id="settingsBtn">⚙️</button>
 
-    <!-- User badge -->
-    <div class="user-badge" id="userBadge" style="display:none;">
-      <span class="user-icon">👤</span>
-      <span class="user-name" id="userNameDisplay"></span>
-      <button class="badge-logout-btn" id="badgeLogoutBtn">Logga ut</button>
+  <!-- User badge -->
+  <div class="user-badge" id="userBadge" style="display:none;">
+    <span class="user-icon">👤</span>
+    <span class="user-name" id="userNameDisplay"></span>
+    <button class="badge-logout-btn" id="badgeLogoutBtn">Logga ut</button>
+  </div>
+
+  <!-- Sections wrapper -->
+  <div class="sections-wrapper">
+    <!-- Kväll sektion - separat ruta -->
+    <div class="section-box">
+      <h2 class="section-title">Kväll</h2>
+      <div class="container" id="buttonContainerKvall"></div>
     </div>
 
-    <!-- 🔑 ENDA platsen där knappar ska renderas -->
-    <div class="container" id="buttonContainer">
-      <!-- Buttons rendered by script.js -->
+    <!-- Dag sektion - separat ruta -->
+    <div class="section-box">
+      <h2 class="section-title">Dag</h2>
+      <div class="container" id="buttonContainerDag"></div>
     </div>
   </div>
 
@@ -61,6 +69,13 @@
       <h3>Lägg till nytt script</h3>
       <input type="text" id="scriptNameInput" placeholder="Namn på scriptet...">
       <input type="text" id="scriptEmojiInput" placeholder="Emoji (t.ex. 🎯)" maxlength="2">
+      <div class="section-select-wrapper">
+        <label for="scriptSectionSelect">Sektion:</label>
+        <select id="scriptSectionSelect">
+          <option value="kvall">Kväll</option>
+          <option value="dag">Dag</option>
+        </select>
+      </div>
       <div class="input-dialog-buttons">
         <button class="cancel-btn" id="dialogCancel">Avbryt</button>
         <button class="confirm-btn" id="dialogConfirm">Skapa</button>
