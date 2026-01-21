@@ -1642,6 +1642,13 @@ async function selectScript(key) {
   // Alla scripts finns i customScripts
   currentScriptContent = customScripts[key] || '';
   codeEditor.value = currentScriptContent;
+
+  // Fyll i knappnamnet (ta bort HTML-taggar som <br>)
+  const scriptNameEdit = document.getElementById('scriptNameEdit');
+  if (scriptNameEdit) {
+    const cleanName = (scriptNames[key] || key).replace(/<br>/g, ' ');
+    scriptNameEdit.value = cleanName;
+  }
 }
 
 saveBtn.onclick = () => {
@@ -1662,7 +1669,16 @@ saveBtn.onclick = () => {
 
   customScripts[currentScript] = codeEditor.value;
   currentScriptContent = codeEditor.value;
+
+  // Spara knappnamnet om det ändrats
+  const scriptNameEdit = document.getElementById('scriptNameEdit');
+  if (scriptNameEdit && scriptNameEdit.value.trim()) {
+    scriptNames[currentScript] = scriptNameEdit.value.trim();
+    renderScriptList();
+  }
+
   saveCustomData();
+  renderButtons();
   showStatus('✅ Sparat!');
 };
 
